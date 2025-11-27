@@ -33,10 +33,6 @@ const App: React.FC = () => {
   const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
   const [isCookbookOpen, setIsCookbookOpen] = useState(false);
 
-  // API Key Modal State
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
-
   // Initial Checks
   useEffect(() => {
     // Check for saved recipes
@@ -48,21 +44,7 @@ const App: React.FC = () => {
         console.error("Could not parse saved recipes", e);
       }
     }
-
-    // Check for API Key if not in environment
-    const key = getApiKey();
-    if (!key) {
-      setShowApiKeyModal(true);
-    }
   }, []);
-
-  const handleSaveApiKey = () => {
-    if (apiKeyInput.trim()) {
-      localStorage.setItem('gemini_api_key', apiKeyInput.trim());
-      setShowApiKeyModal(false);
-      // Optional: Show success or just proceed
-    }
-  };
 
   // Handlers
   const handleAddIngredient = (e?: React.FormEvent) => {
@@ -95,12 +77,6 @@ const App: React.FC = () => {
       return;
     }
     
-    // Check API key again before starting
-    if (!getApiKey()) {
-      setShowApiKeyModal(true);
-      return;
-    }
-    
     setLoading(true);
     setError(null);
     
@@ -112,8 +88,7 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       if (err.message === 'API_KEY_MISSING') {
-        setShowApiKeyModal(true);
-        setError("Devam etmek için API anahtarı gereklidir.");
+         setError("API Anahtarı bulunamadı. Lütfen yapılandırmayı kontrol edin.");
       } else {
         setError("Tarif oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.");
       }
@@ -210,49 +185,6 @@ const App: React.FC = () => {
           </div>
         </div>
       </nav>
-
-      {/* API Key Modal */}
-      {showApiKeyModal && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-[popIn_0.3s_ease-out]">
-            <div className="text-center mb-6">
-              <div className="text-4xl mb-2">🔑</div>
-              <h2 className="text-xl font-bold text-gray-800">API Anahtarı Gerekli</h2>
-              <p className="text-sm text-gray-600 mt-2">
-                Uygulamanın çalışması için kendi Google Gemini API anahtarınızı girmelisiniz.
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Gemini API Key</label>
-                <input 
-                  type="password" 
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-chef-500 outline-none font-mono text-sm"
-                />
-              </div>
-              
-              <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-                <p>Anahtarınız yok mu?</p>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-chef-600 font-bold hover:underline">
-                  Buradan ücretsiz bir anahtar alabilirsiniz →
-                </a>
-              </div>
-
-              <button 
-                onClick={handleSaveApiKey}
-                disabled={!apiKeyInput.trim()}
-                className={`w-full py-3 rounded-xl font-bold text-white transition-colors ${!apiKeyInput.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-chef-600 hover:bg-chef-700'}`}
-              >
-                Kaydet ve Devam Et
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Cookbook Modal */}
       {isCookbookOpen && (

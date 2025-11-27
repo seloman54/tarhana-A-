@@ -7,10 +7,6 @@ export const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
     return process.env.API_KEY;
   }
-  // Fallback to localStorage if running as a standalone app/export without env
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('gemini_api_key') || '';
-  }
   return '';
 };
 
