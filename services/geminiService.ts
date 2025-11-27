@@ -107,20 +107,20 @@ export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string
   // 1. Try Gemini First if AI is available
   if (ai) {
     try {
-      // Create a timeout promise (4 seconds)
+      // Create a timeout promise (2.5 seconds)
       // If Gemini takes too long (e.g. queue or cold start), we skip to fallback to keep UI snappy.
       const timeoutPromise = new Promise<null>((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout")), 4000)
+        setTimeout(() => reject(new Error("Timeout")), 2500)
       );
 
-      const ingredientsContext = recipe.ingredientsList.join(", ");
+      // Focus on ingredients for better visual relevance
+      const ingredientsContext = recipe.ingredientsList.slice(0, 5).join(", ");
       const prompt = `
-        Create a highly realistic, professional food photography shot of the dish named: "${recipe.recipeName}".
-        VISUAL REQUIREMENTS:
-        1. The dish MUST look like: ${recipe.description}.
-        2. VISIBLE INGREDIENTS: Use ONLY these main ingredients visually: ${ingredientsContext}.
-        3. STYLE: High resolution, 4k, appetizing, soft studio lighting, macro food photography depth of field.
-        Exclude: Alcohol, pork, blurry elements, text overlays.
+        Professional food photography close-up.
+        Dish: ${recipe.recipeName}.
+        Main Ingredients visible: ${ingredientsContext}.
+        Style: 4k, photorealistic, appetizing, soft studio lighting, macro depth of field.
+        No text, no people, no alcohol.
       `;
 
       const apiCall = ai.models.generateContent({
@@ -152,15 +152,16 @@ export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string
 
 const generatePollinationsImage = (recipe: GeneratedRecipe): string => {
   // Construct a prompt for Pollinations
-  // We simplify the prompt slightly for the fallback to ensure it captures the essence quickly
-  const prompt = `Professional food photography of ${recipe.recipeName}, ${recipe.description}, delicious, studio lighting, photorealistic, no text`;
+  // We include ingredients in the fallback prompt to ensure the image looks like the actual food
+  // even if the model doesn't know the Turkish dish name.
+  const ingredientsShort = recipe.ingredientsList.slice(0, 4).join(", ");
+  const prompt = `food photography of ${recipe.recipeName}, made of ${ingredientsShort}, ${recipe.description}, delicious, studio lighting, photorealistic, 4k`;
   const encodedPrompt = encodeURIComponent(prompt);
   
-  // Add a random seed to ensure freshness
   const seed = Math.floor(Math.random() * 10000);
   
-  // OPTIMIZATION: Reduced size from 1024 to 768 for faster generation and load times
-  return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=768&height=768&nologo=true&seed=${seed}&model=flux`;
+  // OPTIMIZATION: Reduced size to 512x512 for much faster loading (4x faster than 1024)
+  return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&nologo=true&seed=${seed}&model=flux`;
 };
 
 export const editDishImage = async (imageSrc: string, editPrompt: string): Promise<string | null> => {
