@@ -1,0 +1,65 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tarhana AI - Akıllı Yemek Önerileri</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='100' y2='100'%3E%3Cstop offset='0%25' stop-color='%23fb923c'/%3E%3Cstop offset='100%25' stop-color='%23c2410c'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='5' y='5' width='90' height='90' rx='22' fill='url(%23g)'/%3E%3Cpath d='M25 50 C25 75 35 85 50 85 C65 85 75 75 75 50 L80 40 L20 40 L25 50Z' fill='white'/%3E%3Cpath d='M30 40 Q50 25 70 40' fill='%23fff7ed'/%3E%3Cg stroke='white' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M75 50 L85 50 L90 45'/%3E%3Ccircle cx='90' cy='45' r='3' fill='white' stroke='none'/%3E%3Cpath d='M73 60 L88 60'/%3E%3Ccircle cx='88' cy='60' r='3' fill='white' stroke='none'/%3E%3Cpath d='M65 75 L75 85 L85 85'/%3E%3Ccircle cx='85' cy='85' r='3' fill='white' stroke='none'/%3E%3C/g%3E%3Ccircle cx='50' cy='20' r='4' fill='white'/%3E%3Ccircle cx='35' cy='28' r='3' fill='white'/%3E%3Ccircle cx='65' cy='28' r='3' fill='white'/%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['Playfair Display', 'serif'],
+            },
+            colors: {
+              chef: {
+                50: '#fff7ed',
+                100: '#ffedd5',
+                200: '#fed7aa',
+                300: '#fdba74',
+                400: '#fb923c',
+                500: '#f97316',
+                600: '#ea580c',
+                700: '#c2410c',
+                800: '#9a3412',
+                900: '#7c2d12',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #fff7ed;
+      }
+      .fade-in {
+        animation: fadeIn 0.5s ease-in;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "jspdf": "https://jspm.dev/jspdf"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
