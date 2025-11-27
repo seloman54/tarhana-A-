@@ -2,10 +2,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { GeneratedRecipe, ChefPersona, ChefProfile } from "../types";
 import { CHEF_PROFILES } from "../constants";
 
-// --- API ANAHTARI ALMA (DÜZELTİLDİ) ---
+// --- API ANAHTARI ALMA ---
 export const getApiKey = () => {
   // 1. ÖNCELİK: Vite / Vercel (Modern Web)
-  // Vercel'de tanımladığımız VITE_GEMINI_API_KEY'i burada arıyoruz.
   try {
     // @ts-ignore
     if (import.meta && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
@@ -29,7 +28,6 @@ export const getApiKey = () => {
 // Helper to get dynamic AI instance
 const getAI = () => {
   const key = getApiKey();
-  // Eğer anahtar yoksa null döner, bu durumda App.tsx'teki modal açılır.
   return key ? new GoogleGenAI({ apiKey: key }) : null;
 };
 
@@ -100,16 +98,21 @@ export const generateRecipe = async (
 };
 
 // --- IMAGE GENERATION STRATEGY ---
-// 1. Try Gemini 2.5 Flash Image (High Quality, but needs paid/preview access)
-// 2. Fallback to Pollinations.ai (Free, unlimited, works everywhere)
+// 1. Try Gemini 2.5 Flash Image (High Quality) - With timeout
+// 2. Fallback to Pollinations.ai (Free, unlimited) - Optimized size
 
 export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string | null> => {
   const ai = getAI();
   
   // 1. Try Gemini First if AI is available
-  // NOT: API Key olsa bile kota hatası (429) alabiliriz, bu yüzden try-catch bloğu çok önemli.
   if (ai) {
     try {
+      // Create a timeout promise (4 seconds)
+      // If Gemini takes too long (e.g. queue or cold start), we skip to fallback to keep UI snappy.
+      const timeoutPromise = new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), 4000)
+      );
+
       const ingredientsContext = recipe.ingredientsList.join(", ");
       const prompt = `
         Create a highly realistic, professional food photography shot of the dish named: "${recipe.recipeName}".
@@ -120,11 +123,14 @@ export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string
         Exclude: Alcohol, pork, blurry elements, text overlays.
       `;
 
-      const response = await ai.models.generateContent({
+      const apiCall = ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: prompt,
         config: {}
       });
+
+      // Race API call against timeout
+      const response = await Promise.race([apiCall, timeoutPromise]) as any;
 
       const parts = response.candidates?.[0]?.content?.parts;
       if (parts) {
@@ -135,25 +141,26 @@ export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string
         }
       }
     } catch (error) {
-      console.warn("Gemini Image Gen failed (Quota/Auth issue). Switching to Pollinations fallback...", error);
+      console.warn("Gemini Image Gen skipped (Error or Timeout). Switching to Pollinations fallback...", error);
       // Hata alınca kod durmuyor, aşağıya devam edip Pollinations'ı çalıştırıyor.
     }
   }
 
   // 2. Fallback: Pollinations.ai
-  // Burası Vercel'de hayat kurtaran kısım!
   return generatePollinationsImage(recipe);
 };
 
 const generatePollinationsImage = (recipe: GeneratedRecipe): string => {
   // Construct a prompt for Pollinations
-  const prompt = `Professional food photography of ${recipe.recipeName}, ${recipe.description}, delicious, 4k, cinematic lighting, photorealistic, no text`;
+  // We simplify the prompt slightly for the fallback to ensure it captures the essence quickly
+  const prompt = `Professional food photography of ${recipe.recipeName}, ${recipe.description}, delicious, studio lighting, photorealistic, no text`;
   const encodedPrompt = encodeURIComponent(prompt);
   
   // Add a random seed to ensure freshness
   const seed = Math.floor(Math.random() * 10000);
   
-  return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
+  // OPTIMIZATION: Reduced size from 1024 to 768 for faster generation and load times
+  return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=768&height=768&nologo=true&seed=${seed}&model=flux`;
 };
 
 export const editDishImage = async (imageSrc: string, editPrompt: string): Promise<string | null> => {
