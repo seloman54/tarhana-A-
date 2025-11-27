@@ -3,7 +3,7 @@ import { GeneratedRecipe, ChefPersona, ChefProfile } from "../types";
 import { CHEF_PROFILES } from "../constants";
 
 // Get API Key securely
-const getApiKey = () => {
+export const getApiKey = () => {
   if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
     return process.env.API_KEY;
   }
@@ -14,14 +14,18 @@ const getApiKey = () => {
   return '';
 };
 
-const apiKey = getApiKey();
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// Helper to get dynamic AI instance
+const getAI = () => {
+  const key = getApiKey();
+  return key ? new GoogleGenAI({ apiKey: key }) : null;
+};
 
 export const generateRecipe = async (
   ingredients: string[],
   chefId: ChefPersona
 ): Promise<GeneratedRecipe> => {
-  if (!ai) throw new Error("API Anahtarı bulunamadı.");
+  const ai = getAI();
+  if (!ai) throw new Error("API_KEY_MISSING");
 
   const chef: ChefProfile = CHEF_PROFILES.find(c => c.id === chefId) || CHEF_PROFILES[0];
   
@@ -87,7 +91,8 @@ export const generateRecipe = async (
 // 2. Fallback to Pollinations.ai (Free, unlimited, works everywhere)
 
 export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string | null> => {
-  // 1. Try Gemini First
+  const ai = getAI();
+  // 1. Try Gemini First if AI is available
   if (ai) {
     try {
       const ingredientsContext = recipe.ingredientsList.join(", ");
@@ -137,6 +142,7 @@ const generatePollinationsImage = (recipe: GeneratedRecipe): string => {
 };
 
 export const editDishImage = async (imageSrc: string, editPrompt: string): Promise<string | null> => {
+  const ai = getAI();
   // Editing is strictly a Gemini feature. If Gemini is not available/fails, editing won't work.
   if (!ai) return null;
 
