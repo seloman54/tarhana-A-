@@ -2,17 +2,34 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { GeneratedRecipe, ChefPersona, ChefProfile } from "../types";
 import { CHEF_PROFILES } from "../constants";
 
-// Get API Key securely
+// --- API ANAHTARI ALMA (DÜZELTİLDİ) ---
 export const getApiKey = () => {
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
+  // 1. ÖNCELİK: Vite / Vercel (Modern Web)
+  // Vercel'de tanımladığımız VITE_GEMINI_API_KEY'i burada arıyoruz.
+  try {
+    // @ts-ignore
+    if (import.meta && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) {
+      // @ts-ignore
+      return import.meta.env.VITE_GEMINI_API_KEY;
+    }
+  } catch (e) {
+    // Hata olursa sessizce geç
   }
+
+  // 2. YEDEK: Klasik Process Env (AI Studio / Yerel Node.js)
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.VITE_GEMINI_API_KEY) return process.env.VITE_GEMINI_API_KEY;
+    if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+    if (process.env.API_KEY) return process.env.API_KEY;
+  }
+
   return '';
 };
 
 // Helper to get dynamic AI instance
 const getAI = () => {
   const key = getApiKey();
+  // Eğer anahtar yoksa null döner, bu durumda App.tsx'teki modal açılır.
   return key ? new GoogleGenAI({ apiKey: key }) : null;
 };
 
@@ -88,7 +105,9 @@ export const generateRecipe = async (
 
 export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string | null> => {
   const ai = getAI();
+  
   // 1. Try Gemini First if AI is available
+  // NOT: API Key olsa bile kota hatası (429) alabiliriz, bu yüzden try-catch bloğu çok önemli.
   if (ai) {
     try {
       const ingredientsContext = recipe.ingredientsList.join(", ");
@@ -116,22 +135,22 @@ export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string
         }
       }
     } catch (error) {
-      console.warn("Gemini Image Gen failed (likely quota/preview issue). Switching to fallback provider...", error);
-      // Proceed to fallback
+      console.warn("Gemini Image Gen failed (Quota/Auth issue). Switching to Pollinations fallback...", error);
+      // Hata alınca kod durmuyor, aşağıya devam edip Pollinations'ı çalıştırıyor.
     }
   }
 
   // 2. Fallback: Pollinations.ai
+  // Burası Vercel'de hayat kurtaran kısım!
   return generatePollinationsImage(recipe);
 };
 
 const generatePollinationsImage = (recipe: GeneratedRecipe): string => {
   // Construct a prompt for Pollinations
-  // We translate essential parts to English or use keywords for better results
   const prompt = `Professional food photography of ${recipe.recipeName}, ${recipe.description}, delicious, 4k, cinematic lighting, photorealistic, no text`;
   const encodedPrompt = encodeURIComponent(prompt);
   
-  // Add a random seed to ensure freshness if called multiple times for similar prompts
+  // Add a random seed to ensure freshness
   const seed = Math.floor(Math.random() * 10000);
   
   return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
@@ -139,13 +158,9 @@ const generatePollinationsImage = (recipe: GeneratedRecipe): string => {
 
 export const editDishImage = async (imageSrc: string, editPrompt: string): Promise<string | null> => {
   const ai = getAI();
-  // Editing is strictly a Gemini feature. If Gemini is not available/fails, editing won't work.
   if (!ai) return null;
 
   try {
-    // If imageSrc is a URL (Pollinations), we can't edit it easily with Gemini 2.5 Flash Image 
-    // because it expects inlineData (Base64). 
-    // We would need to fetch it first. For now, we only support editing Base64 images (Gemini generated).
     if (!imageSrc.startsWith('data:')) {
       alert("Şu an sadece AI tarafından oluşturulan orijinal görseller düzenlenebilir.");
       return null;
