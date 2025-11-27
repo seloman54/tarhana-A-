@@ -2,12 +2,27 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { GeneratedRecipe, ChefPersona, ChefProfile } from "../types";
 import { CHEF_PROFILES } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Get API Key securely
+const getApiKey = () => {
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  // Fallback to localStorage if running as a standalone app/export without env
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('gemini_api_key') || '';
+  }
+  return '';
+};
+
+const apiKey = getApiKey();
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const generateRecipe = async (
   ingredients: string[],
   chefId: ChefPersona
 ): Promise<GeneratedRecipe> => {
+  if (!ai) throw new Error("API Anahtarı bulunamadı.");
+
   const chef: ChefProfile = CHEF_PROFILES.find(c => c.id === chefId) || CHEF_PROFILES[0];
   
   const prompt = `
@@ -67,58 +82,78 @@ export const generateRecipe = async (
   return JSON.parse(response.text) as GeneratedRecipe;
 };
 
+// --- IMAGE GENERATION STRATEGY ---
+// 1. Try Gemini 2.5 Flash Image (High Quality, but needs paid/preview access)
+// 2. Fallback to Pollinations.ai (Free, unlimited, works everywhere)
+
 export const generateDishImage = async (recipe: GeneratedRecipe): Promise<string | null> => {
-  // Use gemini-2.5-flash-image for visual generation with strict adherence to ingredients
-  const ingredientsContext = recipe.ingredientsList.join(", ");
-  
-  const prompt = `
-    Create a highly realistic, professional food photography shot of the dish named: "${recipe.recipeName}".
-    
-    VISUAL REQUIREMENTS:
-    1. The dish MUST look like: ${recipe.description}.
-    2. VISIBLE INGREDIENTS: Use ONLY these main ingredients visually: ${ingredientsContext}. Do NOT add random ingredients that are not listed (e.g., if no meat is listed, do not show meat).
-    3. STYLE: High resolution, 4k, appetizing, soft studio lighting, macro food photography depth of field.
-    4. PRESENTATION: The plating should match the cooking method (e.g., if it's a soup, show it in a bowl; if baked, show texture).
-    
-    Exclude: Alcohol, pork, blurry elements, text overlays, ingredients not in the recipe.
-  `;
+  // 1. Try Gemini First
+  if (ai) {
+    try {
+      const ingredientsContext = recipe.ingredientsList.join(", ");
+      const prompt = `
+        Create a highly realistic, professional food photography shot of the dish named: "${recipe.recipeName}".
+        VISUAL REQUIREMENTS:
+        1. The dish MUST look like: ${recipe.description}.
+        2. VISIBLE INGREDIENTS: Use ONLY these main ingredients visually: ${ingredientsContext}.
+        3. STYLE: High resolution, 4k, appetizing, soft studio lighting, macro food photography depth of field.
+        Exclude: Alcohol, pork, blurry elements, text overlays.
+      `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: prompt,
-      config: {
-        // No responseMimeType for image gen on this model
-      }
-    });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: prompt,
+        config: {}
+      });
 
-    // Extract image from response parts
-    const parts = response.candidates?.[0]?.content?.parts;
-    if (parts) {
-      for (const part of parts) {
-        if (part.inlineData && part.inlineData.mimeType.startsWith('image')) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      const parts = response.candidates?.[0]?.content?.parts;
+      if (parts) {
+        for (const part of parts) {
+          if (part.inlineData && part.inlineData.mimeType.startsWith('image')) {
+            return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          }
         }
       }
+    } catch (error) {
+      console.warn("Gemini Image Gen failed (likely quota/preview issue). Switching to fallback provider...", error);
+      // Proceed to fallback
     }
-  } catch (error) {
-    console.error("Image generation error:", error);
-    // Fallback logic handled in UI
-    return null;
   }
 
-  // Fallback if no image generated (or model only returned text)
-  return null;
+  // 2. Fallback: Pollinations.ai
+  return generatePollinationsImage(recipe);
+};
+
+const generatePollinationsImage = (recipe: GeneratedRecipe): string => {
+  // Construct a prompt for Pollinations
+  // We translate essential parts to English or use keywords for better results
+  const prompt = `Professional food photography of ${recipe.recipeName}, ${recipe.description}, delicious, 4k, cinematic lighting, photorealistic, no text`;
+  const encodedPrompt = encodeURIComponent(prompt);
+  
+  // Add a random seed to ensure freshness if called multiple times for similar prompts
+  const seed = Math.floor(Math.random() * 10000);
+  
+  return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
 };
 
 export const editDishImage = async (imageSrc: string, editPrompt: string): Promise<string | null> => {
-  // Extract base64 data from Data URI
-  const base64Data = imageSrc.split(',')[1];
-  const mimeType = imageSrc.split(':')[1].split(';')[0];
-
-  const prompt = `Edit this image based on the following instruction: "${editPrompt}". Keep the photorealistic food photography style and high resolution.`;
+  // Editing is strictly a Gemini feature. If Gemini is not available/fails, editing won't work.
+  if (!ai) return null;
 
   try {
+    // If imageSrc is a URL (Pollinations), we can't edit it easily with Gemini 2.5 Flash Image 
+    // because it expects inlineData (Base64). 
+    // We would need to fetch it first. For now, we only support editing Base64 images (Gemini generated).
+    if (!imageSrc.startsWith('data:')) {
+      alert("Şu an sadece AI tarafından oluşturulan orijinal görseller düzenlenebilir.");
+      return null;
+    }
+
+    const base64Data = imageSrc.split(',')[1];
+    const mimeType = imageSrc.split(':')[1].split(';')[0];
+
+    const prompt = `Edit this image based on the following instruction: "${editPrompt}". Keep the photorealistic food photography style.`;
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
